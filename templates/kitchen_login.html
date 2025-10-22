@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kitchen Staff Login - KDS</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 400px;
+            margin: 50px auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .login-container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 16px;
+        }
+        .login-btn {
+            width: 100%;
+            padding: 12px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        .login-btn:hover {
+            background-color: #0056b3;
+        }
+        .counter-info {
+            background-color: #e9ecef;
+            padding: 15px;
+            border-radius: 4px;
+            margin-top: 20px;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        .status.success {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .orders-section {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 4px;
+        }
+        .order-item {
+            background: white;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 4px;
+            border-left: 4px solid #007bff;
+        }
+        .order-item.status-new { border-left-color: #28a745; }
+        .order-item.status-in_progress { border-left-color: #ffc107; }
+        .order-item.status-ready { border-left-color: #dc3545; }
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .status-new { background-color: #d4edda; color: #155724; }
+        .status-in_progress { background-color: #fff3cd; color: #856404; }
+        .status-ready { background-color: #f8d7da; color: #721c24; }
+        .update-btn {
+            padding: 5px 10px;
+            margin: 2px;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+        .btn-new { background-color: #28a745; color: white; }
+        .btn-progress { background-color: #ffc107; color: black; }
+        .btn-ready { background-color: #dc3545; color: white; }
+        .btn-cancel { background-color: #6c757d; color: white; }
+        .log {
+            background-color: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            height: 150px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <h1>🍽️ Kitchen Staff Login</h1>
+        
+        <form id="loginForm">
+            <div class="form-group">
+                <label for="counterSelect">Select Your Counter:</label>
+                <select id="counterSelect" required>
+                    <option value="">Choose your counter...</option>
+                    <option value="1">Main Kitchen (PIN: 1234)</option>
+                    <option value="2">Juice Corner (PIN: 5678)</option>
+                    <option value="3">Grill Counter (PIN: 9012)</option>
+                    <option value="4">Salad Station (PIN: 3456)</option>
+                </select>
+            </div>
+            
+            <div class="form-group">
+                <label for="pinInput">Enter PIN:</label>
+                <input type="password" id="pinInput" placeholder="Enter your PIN" required>
+            </div>
+            
+            <button type="submit" class="login-btn">🔐 Login to Counter</button>
+        </form>
+        
+        <div id="loginStatus"></div>
+        
+        <div id="counterInfo" style="display: none;">
+            <div class="counter-info">
+                <h3 id="counterName"></h3>
+                <p id="counterDescription"></p>
+                <div id="connectionStatus" style="margin: 10px 0; padding: 5px; border-radius: 4px; font-size: 12px;">
+                    <span id="wsStatus">🔌 Connecting...</span>
+                </div>
+                <button onclick="loadOrders()">🔄 Refresh Orders</button>
+                <button onclick="logout()">🚪 Logout</button>
+            </div>
+            
+            <div class="orders-section">
+                <h3>📋 Your Orders</h3>
+                <div id="ordersList">
+                    <!-- Orders will be loaded here -->
+                </div>
+            </div>
+            
+            <div class="orders-section">
+                <h3>📝 Real-time Activity Log</h3>
+                <div id="log" class="log">
+                    <!-- Real-time updates will be shown here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentCounter = null;
+        let currentCounterId = null;
+        let websocket = null;
+
+        // Load login state from localStorage on page load
+        function loadLoginState() {
+            const savedCounter = localStorage.getItem('currentCounter');
+            const savedCounterId = localStorage.getItem('currentCounterId');
+            
+            if (savedCounter && savedCounterId) {
+                try {
+                    currentCounter = JSON.parse(savedCounter);
+                    currentCounterId = parseInt(savedCounterId);
+                    
+                    // Restore UI state
+                    document.getElementById('loginStatus').innerHTML = 
+                        `<div class="status success">✅ Login successful! Welcome to ${currentCounter.counter_name}</div>`;
+                    document.getElementById('counterName').textContent = currentCounter.counter_name;
+                    document.getElementById('counterDescription').textContent = 
+                        `Counter ID: ${currentCounter.counter_id} | You are now logged in`;
+                    document.getElementById('counterInfo').style.display = 'block';
+                    document.getElementById('loginForm').style.display = 'none';
+                    
+                    // Reconnect WebSocket
+                    connectWebSocket();
+                } catch (e) {
+                    console.error('Error loading login state:', e);
+                    clearLoginState();
+                }
+            }
+        }
+
+        // Save login state to localStorage
+        function saveLoginState() {
+            if (currentCounter && currentCounterId) {
+                localStorage.setItem('currentCounter', JSON.stringify(currentCounter));
+                localStorage.setItem('currentCounterId', currentCounterId.toString());
+            }
+        }
+
+        // Clear login state from localStorage
+        function clearLoginState() {
+            localStorage.removeItem('currentCounter');
+            localStorage.removeItem('currentCounterId');
+        }
+
+        // Login form submission
+        document.getElementById('loginForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const counterId = document.getElementById('counterSelect').value;
+            const pin = document.getElementById('pinInput').value;
+            
+            try {
+                const response = await fetch('http://127.0.0.1:8000/api/kds/login/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ counter_id: parseInt(counterId), pin: pin })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentCounter = data;
+                    currentCounterId = counterId;
+                    
+                    // Save login state to localStorage
+                    saveLoginState();
+                    
+                    document.getElementById('loginStatus').innerHTML = 
+                        `<div class="status success">✅ Login successful! Welcome to ${data.counter_name}</div>`;
+                    
+                    document.getElementById('counterName').textContent = data.counter_name;
+                    document.getElementById('counterDescription').textContent = 
+                        `Counter ID: ${data.counter_id} | You are now logged in`;
+                    
+                    document.getElementById('counterInfo').style.display = 'block';
+                    document.getElementById('loginForm').style.display = 'none';
+                    
+                    // Connect to WebSocket for real-time updates
+                    connectWebSocket();
+                    
+                    // Load orders for this counter
+                    loadOrders();
+                } else {
+                    document.getElementById('loginStatus').innerHTML = 
+                        `<div class="status error">❌ Login failed: ${data.error}</div>`;
+                }
+            } catch (error) {
+                document.getElementById('loginStatus').innerHTML = 
+                    `<div class="status error">❌ Connection error: ${error.message}</div>`;
+            }
+        });
+
+        // Load orders for current counter
+        async function loadOrders() {
+            if (!currentCounterId) return;
+            
+            try {
+                const response = await fetch(`http://127.0.0.1:8000/api/kds/orders/counter/${currentCounterId}/`);
+                const orders = await response.json();
+                
+                displayOrders(orders);
+            } catch (error) {
+                document.getElementById('ordersList').innerHTML = 
+                    `<div class="status error">❌ Error loading orders: ${error.message}</div>`;
+            }
+        }
+
+        // Display orders
+        function displayOrders(orders) {
+            const container = document.getElementById('ordersList');
+            
+            if (orders.length === 0) {
+                container.innerHTML = '<p>No orders assigned to your counter</p>';
+                return;
+            }
+            
+            let html = '';
+            orders.forEach(order => {
+                html += createOrderHtml(order);
+            });
+            
+            container.innerHTML = html;
+        }
+
+        // Update item status
+        async function updateItemStatus(itemId, status) {
+            try {
+                const response = await fetch('http://127.0.0.1:8000/api/kds/update_status/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ item_id: itemId, status: status })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Reload orders to show updated status
+                    loadOrders();
+                } else {
+                    alert(`Error: ${data.error}`);
+                }
+            } catch (error) {
+                alert(`Error: ${error.message}`);
+            }
+        }
+
+        // WebSocket connection
+        function connectWebSocket() {
+            if (currentCounterId) {
+                // Don't create multiple connections
+                if (websocket && (websocket.readyState === WebSocket.OPEN || websocket.readyState === WebSocket.CONNECTING)) {
+                    console.log('WebSocket already connected or connecting');
+                    return;
+                }
+                
+                // Close existing WebSocket connection if any
+                if (websocket && websocket.readyState === WebSocket.OPEN) {
+                    console.log('Closing existing WebSocket connection');
+                    websocket.close();
+                }
+                
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const wsUrl = `${protocol}//127.0.0.1:8000/ws/kitchen/`;
+                
+                websocket = new WebSocket(wsUrl);
+                
+                websocket.onopen = function(event) {
+                    console.log('WebSocket connected');
+                    document.getElementById('wsStatus').innerHTML = '✅ Connected - Real-time updates enabled';
+                    document.getElementById('connectionStatus').style.backgroundColor = '#d4edda';
+                    document.getElementById('connectionStatus').style.color = '#155724';
+                    addLogMessage('🔌 WebSocket connected - Real-time updates enabled');
+                };
+                
+                websocket.onmessage = function(event) {
+                    const data = JSON.parse(event.data);
+                    handleWebSocketMessage(data);
+                };
+                
+                websocket.onclose = function(event) {
+                    console.log('WebSocket disconnected');
+                    document.getElementById('wsStatus').innerHTML = '❌ Disconnected - Real-time updates disabled';
+                    document.getElementById('connectionStatus').style.backgroundColor = '#f8d7da';
+                    document.getElementById('connectionStatus').style.color = '#721c24';
+                    addLogMessage('❌ WebSocket disconnected - Real-time updates disabled');
+                    
+                    // Don't refresh the page or reset login state on WebSocket disconnect
+                    // Just try to reconnect after a delay
+                    setTimeout(() => {
+                        if (currentCounterId) {
+                            console.log('Attempting to reconnect WebSocket...');
+                            connectWebSocket();
+                        }
+                    }, 5000);
+                };
+                
+                websocket.onerror = function(error) {
+                    console.error('WebSocket error:', error);
+                    document.getElementById('wsStatus').innerHTML = '❌ Error - Check server connection';
+                    document.getElementById('connectionStatus').style.backgroundColor = '#f8d7da';
+                    document.getElementById('connectionStatus').style.color = '#721c24';
+                    addLogMessage('❌ WebSocket error - Check server connection');
+                };
+            }
+        }
+        
+        // Handle WebSocket messages
+        function handleWebSocketMessage(data) {
+            switch(data.type) {
+                case 'initial_data':
+                    displayOrders(data.orders);
+                    addLogMessage(`📋 Initial data loaded: ${data.orders.length} orders`);
+                    break;
+                    
+                case 'new_order':
+                    addLogMessage(`🆕 New order received: ${data.order.order_number}`);
+                    
+                    // Check if this order has items for current counter
+                    const hasItemsForCounter = data.order.items && data.order.items.some(item => 
+                        item.assigned_counter == currentCounterId
+                    );
+                    
+                    if (hasItemsForCounter) {
+                        // Add the new order directly to the display
+                        addOrderToDisplay(data.order);
+                        addLogMessage(`✅ Order ${data.order.order_number} added to display`);
+                    } else {
+                        addLogMessage(`⚠️ Order ${data.order.order_number} not for this counter`);
+                    }
+                    break;
+                    
+                case 'order_update':
+                    addLogMessage(`🔄 Order updated: ${data.order.order_number}`);
+                    // Check if this order has items for current counter
+                    const hasItemsForCounterUpdate = data.order.items && data.order.items.some(item => 
+                        item.assigned_counter == currentCounterId
+                    );
+                    if (hasItemsForCounterUpdate) {
+                        // Update the order directly in the display
+                        updateOrderInDisplay(data.order);
+                        addLogMessage(`✅ Order ${data.order.order_number} updated in display`);
+                    }
+                    break;
+                    
+                case 'order_deleted':
+                    addLogMessage(`🗑️ Order deleted: ${data.order_id}`);
+                    // Remove the order directly from display
+                    removeOrderFromDisplay(data.order_id);
+                    addLogMessage(`✅ Order ${data.order_id} removed from display`);
+                    break;
+                    
+                case 'item_status_update':
+                    addLogMessage(`📝 Item ${data.item_id} status updated to ${data.status}`);
+                    // Update item status directly in display
+                    updateItemStatusInDisplay(data.item_id, data.status);
+                    addLogMessage(`✅ Item ${data.item_id} status updated in display`);
+                    break;
+                    
+                case 'pong':
+                    // Keep-alive response
+                    break;
+                    
+                default:
+                    console.log('Unknown WebSocket message:', data);
+            }
+        }
+        
+        // Add log message
+        function addLogMessage(message) {
+            const logDiv = document.getElementById('log');
+            if (logDiv) {
+                const timestamp = new Date().toLocaleTimeString();
+                logDiv.innerHTML += `[${timestamp}] ${message}\n`;
+                logDiv.scrollTop = logDiv.scrollHeight;
+            }
+        }
+        
+        // Add new order to display
+        function addOrderToDisplay(order) {
+            const container = document.getElementById('ordersList');
+            const orderHtml = createOrderHtml(order);
+            container.insertAdjacentHTML('beforeend', orderHtml);
+        }
+        
+        // Update existing order in display
+        function updateOrderInDisplay(order) {
+            const container = document.getElementById('ordersList');
+            const existingOrder = container.querySelector(`[data-order-id="${order.id}"]`);
+            if (existingOrder) {
+                existingOrder.outerHTML = createOrderHtml(order);
+            } else {
+                // If order doesn't exist, add it
+                addOrderToDisplay(order);
+            }
+        }
+        
+        // Remove order from display
+        function removeOrderFromDisplay(orderId) {
+            const container = document.getElementById('ordersList');
+            const existingOrder = container.querySelector(`[data-order-id="${orderId}"]`);
+            if (existingOrder) {
+                existingOrder.remove();
+            }
+        }
+        
+        // Update item status in display
+        function updateItemStatusInDisplay(itemId, status) {
+            const container = document.getElementById('ordersList');
+            const itemElement = container.querySelector(`[data-item-id="${itemId}"]`);
+            if (itemElement) {
+                // Update status badge
+                const statusBadge = itemElement.querySelector('.status-badge');
+                if (statusBadge) {
+                    statusBadge.textContent = status;
+                    statusBadge.className = `status-badge status-${status}`;
+                }
+                
+                // Update status select
+                const statusSelect = itemElement.querySelector('select');
+                if (statusSelect) {
+                    statusSelect.value = status;
+                }
+            }
+        }
+        
+        // Create HTML for order
+        function createOrderHtml(order) {
+            let html = `
+                <div class="order-item" data-order-id="${order.id}">
+                    <h4>${order.order_number} - Table ${order.table_number}</h4>
+                    <p><strong>Customer:</strong> ${order.customer_name}</p>
+                    <p><strong>Total:</strong> $${order.total_amount}</p>
+                    <div class="order-items">
+            `;
+            
+            order.items.forEach(item => {
+                html += `
+                    <div class="order-item status-${item.status}" data-item-id="${item.id}">
+                        <div>
+                            <strong>${item.name}</strong> x${item.quantity}
+                            <br><small>${item.category}</small>
+                        </div>
+                        <div>
+                            <span class="status-badge status-${item.status}">${item.status}</span>
+                            <button class="update-btn btn-new" onclick="updateItemStatus(${item.id}, 'new')">New</button>
+                            <button class="update-btn btn-progress" onclick="updateItemStatus(${item.id}, 'in_progress')">Start</button>
+                            <button class="update-btn btn-ready" onclick="updateItemStatus(${item.id}, 'ready')">Ready</button>
+                            <button class="update-btn btn-cancel" onclick="updateItemStatus(${item.id}, 'cancelled')">Cancel</button>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += '</div></div>';
+            return html;
+        }
+        
+        // Logout
+        function logout() {
+            // Close WebSocket connection
+            if (websocket) {
+                websocket.close();
+                websocket = null;
+            }
+            
+            currentCounter = null;
+            currentCounterId = null;
+            
+            // Clear login state from localStorage
+            clearLoginState();
+            
+            document.getElementById('loginForm').style.display = 'block';
+            document.getElementById('counterInfo').style.display = 'none';
+            document.getElementById('loginStatus').innerHTML = '';
+            document.getElementById('ordersList').innerHTML = '';
+            document.getElementById('loginForm').reset();
+        }
+
+        // Real-time updates via WebSocket - no need for polling
+        
+        // Initialize on page load
+        window.onload = function() {
+            addLogMessage('🚀 KDS System Loaded - Please login to your counter');
+            // Load saved login state if available
+            loadLoginState();
+        };
+    </script>
+</body>
+</html>
