@@ -6,7 +6,18 @@ from .data_storage import OrderDataStorage
 
 class OrderConsumer(AsyncWebsocketConsumer):
     async def connect(self):
-        self.room_group_name = 'kitchen_display'
+        # Get counter ID from query parameters
+        self.counter_id = self.scope['query_string'].decode('utf-8')
+        if 'counter_id=' in self.counter_id:
+            self.counter_id = int(self.counter_id.split('counter_id=')[1].split('&')[0])
+        else:
+            self.counter_id = None
+        
+        # Create counter-specific room group
+        if self.counter_id:
+            self.room_group_name = f'kitchen_display_counter_{self.counter_id}'
+        else:
+            self.room_group_name = 'kitchen_display_all'
         
         # Join room group
         await self.channel_layer.group_add(
@@ -16,8 +27,8 @@ class OrderConsumer(AsyncWebsocketConsumer):
         
         await self.accept()
         
-        # Send current orders to the newly connected client
-        current_orders = self.get_current_orders()
+        # Send current orders filtered by counter to the newly connected client
+        current_orders = self.get_current_orders_for_counter()
         await self.send(text_data=json.dumps({
             'type': 'initial_data',
             'orders': current_orders
@@ -74,22 +85,65 @@ class OrderConsumer(AsyncWebsocketConsumer):
         }))
     
     async def new_order(self, event):
-        # Send new order to WebSocket
-        await self.send(text_data=json.dumps({
-            'type': 'new_order',
-            'order': event['order']
-        }))
+        # Only send new order if it has items for this counter
+        order = event['order']
+        if self.counter_id and self.has_items_for_counter(order, self.counter_id):
+            await self.send(text_data=json.dumps({
+                'type': 'new_order',
+                'order': order
+            }))
+        elif not self.counter_id:
+            # Send to all if no specific counter
+            await self.send(text_data=json.dumps({
+                'type': 'new_order',
+                'order': order
+            }))
     
     async def order_update(self, event):
-        # Send order update to WebSocket
-        await self.send(text_data=json.dumps({
-            'type': 'order_update',
-            'order': event['order']
-        }))
+        # Only send order update if it has items for this counter
+        order = event['order']
+        if self.counter_id and self.has_items_for_counter(order, self.counter_id):
+            await self.send(text_data=json.dumps({
+                'type': 'order_update',
+                'order': order
+            }))
+        elif not self.counter_id:
+            # Send to all if no specific counter
+            await self.send(text_data=json.dumps({
+                'type': 'order_update',
+                'order': order
+            }))
     
-    def get_current_orders(self):
-        """Get current orders from storage"""
-        return OrderDataStorage.get_all_orders()
+    def get_current_orders_for_counter(self):
+        """Get current orders filtered by counter"""
+        if not self.counter_id:
+            return OrderDataStorage.get_all_orders()
+        
+        all_orders = OrderDataStorage.get_all_orders()
+        filtered_orders = []
+        
+        for order in all_orders:
+            # Filter items to show only those assigned to this counter
+            relevant_items = [
+                item for item in order.get('items', []) 
+                if item.get('assigned_counter') == self.counter_id
+            ]
+            
+            # Only include order if it has items for this counter
+            if relevant_items:
+                # Create a copy of the order with only relevant items
+                filtered_order = order.copy()
+                filtered_order['items'] = relevant_items
+                filtered_orders.append(filtered_order)
+        
+        return filtered_orders
+    
+    def has_items_for_counter(self, order, counter_id):
+        """Check if order has items assigned to this counter"""
+        return any(
+            item.get('assigned_counter') == counter_id 
+            for item in order.get('items', [])
+        )
     
     def update_order_status(self, order_id, status):
         """Update order status in storage"""

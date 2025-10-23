@@ -46,13 +46,116 @@ Authenticate a kitchen counter using PIN.
 }
 ```
 
-## 2. Available Counters
+## 2. Counter Management
 
-The system comes with pre-configured counters:
+### 2.1 Get All Counters
+**GET** `/kds/counters/`
 
-- **Main Kitchen (Counter 1)**: PIN 1234
-- **Salad Counter (Counter 2)**: PIN 5678  
-- **Grill Counter (Counter 3)**: PIN 9012
+Get all available counters with their PINs.
+
+**Response (Empty System):**
+```json
+[]
+```
+
+**Response (With Counters):**
+```json
+[
+    {
+        "id": 1,
+        "name": "Coffee Station",
+        "pin": "1111",
+        "description": "Coffee and hot beverages"
+    },
+    {
+        "id": 2,
+        "name": "Grill Station",
+        "pin": "2222",
+        "description": "Grilled meats and vegetables"
+    }
+]
+```
+
+**Note:** The system starts with no counters. All counters must be created by users through the frontend or API.
+
+### 2.2 Create Counter
+**POST** `/kds/counters/create/`
+
+Create a new counter with custom name and PIN.
+
+**Request Body:**
+```json
+{
+    "name": "Coffee Station",
+    "pin": "1111",
+    "description": "Coffee and hot beverages"
+}
+```
+
+**Response:**
+```json
+{
+    "success": true,
+    "message": "Counter created successfully",
+    "counter_id": 1
+}
+```
+
+**Error Response:**
+```json
+{
+    "success": false,
+    "error": "PIN already exists"
+}
+```
+
+### 2.3 Update Counter
+**PUT** `/kds/counters/{counter_id}/update/`
+
+Update an existing counter.
+
+**Request Body:**
+```json
+{
+    "name": "Updated Coffee Station",
+    "pin": "9999",
+    "description": "Updated description"
+}
+```
+
+**Response:**
+```json
+{
+    "success": true,
+    "message": "Counter updated successfully"
+}
+```
+
+### 2.4 Delete Counter
+**DELETE** `/kds/counters/{counter_id}/delete/`
+
+Delete a counter.
+
+**Response:**
+```json
+{
+    "success": true,
+    "message": "Counter deleted successfully"
+}
+```
+
+### 2.5 Reset All Counters
+**POST** `/kds/counters/reset/`
+
+Delete all counters and reset to empty state.
+
+**Response:**
+```json
+{
+    "success": true,
+    "message": "All counters deleted"
+}
+```
 
 ## 3. Order Management
 
@@ -311,14 +414,15 @@ Get specific item details.
 ```
 
 ### 4.2 Update Item Status
-**POST** `/kds/update_status/`
+**POST** `/kds/orders/update-item-status/`
 
 Update the status of an order item.
 
 **Request Body:**
 ```json
 {
-    "item_id": 1,
+    "order_id": 1,
+    "item_index": 0,
     "status": "in_progress"
 }
 ```
@@ -327,7 +431,25 @@ Update the status of an order item.
 ```json
 {
     "success": true,
-    "message": "Item 1 status updated to in_progress"
+    "message": "Item 0 status updated to in_progress",
+    "order": {
+        "id": 1,
+        "order_number": "ORD-0001",
+        "table_number": "T-10",
+        "customer_name": "Alice Johnson",
+        "status": "new",
+        "total_amount": 35.50,
+        "items": [
+            {
+                "name": "Chicken Burger",
+                "category": "Main Course",
+                "quantity": 1,
+                "price": 18.00,
+                "assigned_counter": 1,
+                "status": "in_progress"
+            }
+        ]
+    }
 }
 ```
 
@@ -362,9 +484,9 @@ Get overall system statistics.
 ## 6. WebSocket Endpoints (Real-time Features)
 
 ### 6.1 Kitchen WebSocket
-**WebSocket URL:** `ws://127.0.0.1:8000/ws/kitchen/`
+**WebSocket URL:** `ws://127.0.0.1:8000/ws/kitchen/?counter_id=<counter_id>`
 
-Connect to real-time updates for all kitchen counters.
+Connect to real-time updates for a specific kitchen counter. Each counter only receives updates for orders assigned to them.
 
 **Message Types:**
 
@@ -561,35 +683,46 @@ kds_project/
 ```
 
 ### Features
-- **Multi-Counter Support**: Manage multiple kitchen counters (Main Kitchen, Salad Counter, Grill Counter)
+- **Multi-Counter Support**: Manage multiple kitchen counters (Main Kitchen, Juice Counter, Dessert Counter)
+- **Counter-Specific Filtering**: Each counter only sees items assigned to them
 - **Real-time Order Management**: Create, view, and update orders with live WebSocket updates
 - **PIN-based Authentication**: Simple and secure PIN-based login for kitchen staff
 - **Persistent Login State**: Login state persists across page refreshes using localStorage
 - **Order Creation Interface**: Dedicated interface for creating new orders
+- **Ready-to-Serve Notifications**: Orders marked as ready when all items are completed
 - **Real-time Updates**: WebSocket-based live order status updates across all counters
 - **In-Memory Storage**: Fast data storage that persists during server session
 - **No Database Required**: Lightweight, API-only structure for quick deployment
 
-### Pre-configured Counters
-- **Main Kitchen** (ID: 1, PIN: 1234)
-- **Salad Counter** (ID: 2, PIN: 5678)
-- **Grill Counter** (ID: 3, PIN: 9012)
+### Counter System
+- **Empty Start**: System starts with no counters
+- **User-Created**: All counters must be created by users
+- **Unlimited**: Create as many counters as needed
+- **Custom Names**: Name counters however you want
+- **Unique PINs**: Each counter gets a 4-digit PIN
 
 ### Usage Examples
 
-#### 1. Counter Login
+#### 1. Create Counter
+```bash
+curl -X POST http://127.0.0.1:8000/api/kds/counters/create/ \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Coffee Station", "pin": "1111", "description": "Coffee and hot beverages"}'
+```
+
+#### 2. Counter Login
 ```bash
 curl -X POST http://127.0.0.1:8000/api/kds/login/ \
   -H "Content-Type: application/json" \
-  -d '{"counter_id": 1, "pin": "1234"}'
+  -d '{"counter_id": 1, "pin": "1111"}'
 ```
 
-#### 2. Get Orders for Counter
+#### 3. Get Orders for Counter
 ```bash
 curl http://127.0.0.1:8000/api/kds/orders/counter/1/
 ```
 
-#### 3. Create New Order
+#### 4. Create New Order
 ```bash
 curl -X POST http://127.0.0.1:8000/api/kds/orders/create/ \
   -H "Content-Type: application/json" \
@@ -598,10 +731,10 @@ curl -X POST http://127.0.0.1:8000/api/kds/orders/create/ \
     "customer_name": "Alice Johnson",
     "items": [
       {
-        "name": "Chicken Burger",
-        "category": "Main Course",
-        "quantity": 1,
-        "price": 18.00,
+        "name": "Coffee",
+        "category": "Beverage",
+        "quantity": 2,
+        "price": 8.00,
         "assigned_counter": 1
       }
     ]
@@ -610,17 +743,19 @@ curl -X POST http://127.0.0.1:8000/api/kds/orders/create/ \
 
 ### WebSocket Usage Example
 ```javascript
-const ws = new WebSocket('ws://127.0.0.1:8000/ws/kitchen/');
+// Connect to specific counter
+const ws = new WebSocket('ws://127.0.0.1:8000/ws/kitchen/?counter_id=1');
 
 ws.onmessage = function(event) {
     const data = JSON.parse(event.data);
     console.log('Received:', data);
 };
 
-// Update order status
+// Update item status
 ws.send(JSON.stringify({
-    type: 'update_order_status',
+    type: 'update_item_status',
     order_id: 1,
+    item_index: 0,
     status: 'ready'
 }));
 ```

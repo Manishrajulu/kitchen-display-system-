@@ -93,6 +93,48 @@
 <body>
     <h1>🍽️ KDS Order Creation System</h1>
     
+    <!-- Counter Management -->
+    <div class="container">
+        <h2>🏪 Counter Management</h2>
+        <p>Create and manage your kitchen counters. Each counter can have a custom name and PIN.</p>
+        
+        <!-- Create New Counter Form -->
+        <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+            <h3>➕ Create New Counter</h3>
+            <form id="counterForm">
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-bottom: 15px;">
+                    <div>
+                        <label for="counterName">Counter Name:</label>
+                        <input type="text" id="counterName" placeholder="e.g., Coffee Station" required>
+                    </div>
+                    <div>
+                        <label for="counterPin">PIN (4 digits):</label>
+                        <input type="text" id="counterPin" placeholder="e.g., 1111" maxlength="4" pattern="[0-9]{4}" required>
+                    </div>
+                    <div>
+                        <label for="counterDescription">Description:</label>
+                        <input type="text" id="counterDescription" placeholder="e.g., Coffee and hot beverages">
+                    </div>
+                </div>
+                <button type="submit" style="background-color: #28a745; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer;">
+                    Create Counter
+                </button>
+            </form>
+        </div>
+        
+        <!-- Available Counters Display -->
+        <div id="countersList">
+            <!-- Counters will be loaded here -->
+        </div>
+        
+        <!-- Reset Counters Button -->
+        <div style="margin-top: 20px; text-align: center;">
+            <button onclick="resetCounters()" style="background-color: #dc3545; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer;">
+                🗑️ Delete All Counters
+            </button>
+        </div>
+    </div>
+    
     <!-- Order Creation Form -->
     <div class="container">
         <h2>📝 Create New Order</h2>
@@ -125,11 +167,8 @@
                     </select>
                     <input type="number" placeholder="Qty" class="item-quantity" value="1" min="1">
                     <input type="number" placeholder="Price" class="item-price" step="0.01" min="0">
-                    <select class="item-counter">
-                        <option value="1">Main Kitchen</option>
-                        <option value="2">Juice Corner</option>
-                        <option value="3">Grill Counter</option>
-                        <option value="4">Salad Station</option>
+                    <select class="item-counter" id="itemCounter1">
+                        <!-- Counters will be loaded dynamically -->
                     </select>
                     <button type="button" onclick="removeItem(this)" class="danger">Remove</button>
                 </div>
@@ -148,13 +187,17 @@
         
         <div style="background-color: #e9ecef; padding: 15px; border-radius: 4px; margin: 20px 0;">
             <h3>🔐 Kitchen Staff Access:</h3>
-            <ul>
-                <li><strong>Main Kitchen:</strong> PIN 1234</li>
-                <li><strong>Juice Corner:</strong> PIN 5678</li>
-                <li><strong>Grill Counter:</strong> PIN 9012</li>
-                <li><strong>Salad Station:</strong> PIN 3456</li>
-            </ul>
-            <button onclick="window.open('kitchen_login.html', '_blank')" style="background-color: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer;">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
+                <div><strong>Main Kitchen:</strong> PIN 1234</div>
+                <div><strong>Juice Counter:</strong> PIN 5678</div>
+                <div><strong>Dessert Counter:</strong> PIN 9012</div>
+                <div><strong>Salad Counter:</strong> PIN 3456</div>
+                <div><strong>Grill Station:</strong> PIN 7890</div>
+                <div><strong>Pizza Station:</strong> PIN 2468</div>
+                <div><strong>Beverage Station:</strong> PIN 1357</div>
+                <div><strong>Dessert Station:</strong> PIN 9753</div>
+            </div>
+            <button onclick="window.open('kitchen_login.html', '_blank')" style="background-color: #007bff; color: white; border: none; padding: 10px 20px; border-radius: 4px; cursor: pointer; margin-top: 10px;">
                 🍽️ Open Kitchen Login
             </button>
         </div>
@@ -169,6 +212,7 @@
 
     <script>
         let currentCounter = 0;
+        let availableCounters = [];
 
         function log(message) {
             const logDiv = document.getElementById('log');
@@ -179,6 +223,63 @@
 
         function clearLog() {
             document.getElementById('log').innerHTML = '';
+        }
+
+        // Counter Management Functions
+        async function loadCounters() {
+            try {
+                const response = await fetch('http://127.0.0.1:8000/api/kds/counters/');
+                const counters = await response.json();
+                availableCounters = counters;
+                displayCounters(counters);
+                updateCounterSelects();
+            } catch (error) {
+                log(`❌ Error loading counters: ${error.message}`);
+            }
+        }
+
+        function displayCounters(counters) {
+            const container = document.getElementById('countersList');
+            
+            if (counters.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 40px; background-color: #f8f9fa; border-radius: 8px; border: 2px dashed #dee2e6;">
+                        <h3 style="color: #6c757d; margin-bottom: 10px;">No Counters Created Yet</h3>
+                        <p style="color: #6c757d; margin-bottom: 20px;">Create your first counter to start managing orders</p>
+                        <p style="color: #999; font-size: 14px;">Use the form above to create your first counter</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            let html = '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px;">';
+            
+            counters.forEach(counter => {
+                html += `
+                    <div style="background-color: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #dee2e6;">
+                        <h4 style="margin: 0 0 10px 0;">${counter.name}</h4>
+                        <p style="margin: 5px 0; color: #666;">PIN: <strong>${counter.pin}</strong></p>
+                        <p style="margin: 5px 0; color: #666; font-size: 14px;">${counter.description || 'No description'}</p>
+                        <div style="margin-top: 10px;">
+                            <button onclick="editCounter(${counter.id})" style="background-color: #007bff; color: white; padding: 4px 8px; border: none; border-radius: 4px; margin-right: 5px; cursor: pointer;">Edit</button>
+                            <button onclick="deleteCounter(${counter.id})" style="background-color: #dc3545; color: white; padding: 4px 8px; border: none; border-radius: 4px; cursor: pointer;">Delete</button>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        function updateCounterSelects() {
+            const selects = document.querySelectorAll('.item-counter');
+            selects.forEach(select => {
+                select.innerHTML = '<option value="">Select Counter...</option>';
+                availableCounters.forEach(counter => {
+                    select.innerHTML += `<option value="${counter.id}">${counter.name}</option>`;
+                });
+            });
         }
 
         // Order Form Functions
@@ -197,14 +298,18 @@
                 <input type="number" placeholder="Qty" class="item-quantity" value="1" min="1">
                 <input type="number" placeholder="Price" class="item-price" step="0.01" min="0">
                 <select class="item-counter">
-                    <option value="1">Main Kitchen</option>
-                    <option value="2">Juice Corner</option>
-                    <option value="3">Grill Counter</option>
-                    <option value="4">Salad Station</option>
+                    <!-- Counters will be loaded dynamically -->
                 </select>
                 <button type="button" onclick="removeItem(this)" class="danger">Remove</button>
             `;
             container.appendChild(itemRow);
+            
+            // Update the new select with available counters
+            const newSelect = itemRow.querySelector('.item-counter');
+            newSelect.innerHTML = '<option value="">Select Counter...</option>';
+            availableCounters.forEach(counter => {
+                newSelect.innerHTML += `<option value="${counter.id}">${counter.name}</option>`;
+            });
         }
 
         function removeItem(button) {
@@ -272,9 +377,8 @@
                             <input type="number" placeholder="Price" class="item-price" step="0.01" min="0">
                             <select class="item-counter">
                                 <option value="1">Main Kitchen</option>
-                                <option value="2">Juice Corner</option>
-                                <option value="3">Grill Counter</option>
-                                <option value="4">Salad Station</option>
+                                <option value="2">Juice Counter</option>
+                                <option value="3">Dessert Counter</option>
                             </select>
                             <button type="button" onclick="removeItem(this)" class="danger">Remove</button>
                         </div>
@@ -287,12 +391,142 @@
             }
         });
 
+        // Counter Management Functions
+        async function createCounter() {
+            const name = document.getElementById('counterName').value;
+            const pin = document.getElementById('counterPin').value;
+            const description = document.getElementById('counterDescription').value;
+            
+            if (!name || !pin) {
+                alert('Please fill in counter name and PIN');
+                return;
+            }
+            
+            if (pin.length !== 4 || !/^\d{4}$/.test(pin)) {
+                alert('PIN must be exactly 4 digits');
+                return;
+            }
+            
+            try {
+                const response = await fetch('http://127.0.0.1:8000/api/kds/counters/create/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, pin, description })
+                });
+                
+                const data = await response.json();
+                if (response.ok) {
+                    log(`✅ Counter created: ${name} (ID: ${data.counter_id})`);
+                    document.getElementById('counterForm').reset();
+                    loadCounters(); // Reload counters
+                } else {
+                    log(`❌ Error: ${data.error}`);
+                    alert(data.error);
+                }
+            } catch (error) {
+                log(`❌ Error: ${error.message}`);
+                alert('Failed to create counter');
+            }
+        }
+
+        async function editCounter(counterId) {
+            const newName = prompt('Enter new counter name:');
+            if (!newName) return;
+            
+            const newPin = prompt('Enter new PIN (4 digits):');
+            if (!newPin || newPin.length !== 4 || !/^\d{4}$/.test(newPin)) {
+                alert('PIN must be exactly 4 digits');
+                return;
+            }
+            
+            const newDescription = prompt('Enter new description (optional):');
+            
+            try {
+                const response = await fetch(`http://127.0.0.1:8000/api/kds/counters/${counterId}/update/`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        name: newName, 
+                        pin: newPin, 
+                        description: newDescription 
+                    })
+                });
+                
+                const data = await response.json();
+                if (response.ok) {
+                    log(`✅ Counter updated: ${newName}`);
+                    loadCounters(); // Reload counters
+                } else {
+                    log(`❌ Error: ${data.error}`);
+                    alert(data.error);
+                }
+            } catch (error) {
+                log(`❌ Error: ${error.message}`);
+                alert('Failed to update counter');
+            }
+        }
+
+        async function deleteCounter(counterId) {
+            if (!confirm('Are you sure you want to delete this counter?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`http://127.0.0.1:8000/api/kds/counters/${counterId}/delete/`, {
+                    method: 'DELETE'
+                });
+                
+                const data = await response.json();
+                if (response.ok) {
+                    log(`✅ Counter deleted`);
+                    loadCounters(); // Reload counters
+                } else {
+                    log(`❌ Error: ${data.error}`);
+                    alert(data.error);
+                }
+            } catch (error) {
+                log(`❌ Error: ${error.message}`);
+                alert('Failed to delete counter');
+            }
+        }
+
+        async function resetCounters() {
+            if (!confirm('Are you sure you want to delete all counters? This action cannot be undone.')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('http://127.0.0.1:8000/api/kds/counters/reset/', {
+                    method: 'POST'
+                });
+                
+                const data = await response.json();
+                if (response.ok) {
+                    log(`✅ All counters deleted`);
+                    loadCounters(); // Reload counters
+                } else {
+                    log(`❌ Error: ${data.error}`);
+                    alert(data.error);
+                }
+            } catch (error) {
+                log(`❌ Error: ${error.message}`);
+                alert('Failed to delete counters');
+            }
+        }
+
         // Order Management Functions (simplified - only for order creation)
 
         // Initialize
         window.onload = function() {
             log('🚀 KDS Order Creation System Loaded');
             log('💡 Use Kitchen Login to view and manage orders');
+            loadCounters(); // Load available counters
+            
+            // Add form event listener for counter creation
+            document.getElementById('counterForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                createCounter();
+            });
         };
     </script>
 </body>

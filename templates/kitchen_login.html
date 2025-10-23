@@ -127,10 +127,7 @@
                 <label for="counterSelect">Select Your Counter:</label>
                 <select id="counterSelect" required>
                     <option value="">Choose your counter...</option>
-                    <option value="1">Main Kitchen (PIN: 1234)</option>
-                    <option value="2">Juice Corner (PIN: 5678)</option>
-                    <option value="3">Grill Counter (PIN: 9012)</option>
-                    <option value="4">Salad Station (PIN: 3456)</option>
+                    <!-- Counters will be loaded dynamically -->
                 </select>
             </div>
             
@@ -140,6 +137,7 @@
             </div>
             
             <button type="submit" class="login-btn">🔐 Login to Counter</button>
+            <button type="button" onclick="clearLoginState()" style="background-color: #6c757d; color: white; margin-left: 10px;">🗑️ Clear Saved Login</button>
         </form>
         
         <div id="loginStatus"></div>
@@ -151,8 +149,9 @@
                 <div id="connectionStatus" style="margin: 10px 0; padding: 5px; border-radius: 4px; font-size: 12px;">
                     <span id="wsStatus">🔌 Connecting...</span>
                 </div>
-                <button onclick="loadOrders()">🔄 Refresh Orders</button>
-                <button onclick="logout()">🚪 Logout</button>
+                <button type="button" id="refreshOrdersBtn">🔄 Refresh Orders</button>
+                <button type="button" id="logoutBtn">🚪 Logout</button>
+                <button type="button" id="clearLoginBtn" style="background-color: #dc3545; color: white;">🗑️ Clear Login</button>
             </div>
             
             <div class="orders-section">
@@ -186,17 +185,23 @@
                     currentCounter = JSON.parse(savedCounter);
                     currentCounterId = parseInt(savedCounterId);
                     
-                    // Restore UI state
-                    document.getElementById('loginStatus').innerHTML = 
-                        `<div class="status success">✅ Login successful! Welcome to ${currentCounter.counter_name}</div>`;
-                    document.getElementById('counterName').textContent = currentCounter.counter_name;
-                    document.getElementById('counterDescription').textContent = 
-                        `Counter ID: ${currentCounter.counter_id} | You are now logged in`;
-                    document.getElementById('counterInfo').style.display = 'block';
-                    document.getElementById('loginForm').style.display = 'none';
-                    
-                    // Reconnect WebSocket
-                    connectWebSocket();
+                    // Validate that the saved data is complete
+                    if (currentCounter && currentCounter.counter_name && currentCounter.counter_id) {
+                        // Restore UI state
+                        document.getElementById('loginStatus').innerHTML = 
+                            `<div class="status success">✅ Login successful! Welcome to ${currentCounter.counter_name}</div>`;
+                        document.getElementById('counterName').textContent = currentCounter.counter_name;
+                        document.getElementById('counterDescription').textContent = 
+                            `Counter ID: ${currentCounter.counter_id} | You are now logged in`;
+                        document.getElementById('counterInfo').style.display = 'block';
+                        document.getElementById('loginForm').style.display = 'none';
+                        
+                        // Reconnect WebSocket
+                        connectWebSocket();
+                    } else {
+                        console.error('Invalid saved login state');
+                        clearLoginState();
+                    }
                 } catch (e) {
                     console.error('Error loading login state:', e);
                     clearLoginState();
@@ -216,14 +221,27 @@
         function clearLoginState() {
             localStorage.removeItem('currentCounter');
             localStorage.removeItem('currentCounterId');
+            
+            // Reset UI to login form
+            document.getElementById('loginForm').style.display = 'block';
+            document.getElementById('counterInfo').style.display = 'none';
+            document.getElementById('loginStatus').innerHTML = '';
+            document.getElementById('ordersList').innerHTML = '';
+            
+            // Reset variables
+            currentCounter = null;
+            currentCounterId = null;
         }
 
         // Login form submission
         document.getElementById('loginForm').addEventListener('submit', async function(e) {
             e.preventDefault();
+            addLogMessage('🔄 Login form submitted');
             
             const counterId = document.getElementById('counterSelect').value;
             const pin = document.getElementById('pinInput').value;
+            
+            addLogMessage(`🔄 Attempting login with Counter ID: ${counterId}, PIN: ${pin ? '****' : 'empty'}`);
             
             try {
                 const response = await fetch('http://127.0.0.1:8000/api/kds/login/', {
@@ -235,18 +253,18 @@
                 const data = await response.json();
                 
                 if (data.success) {
-                    currentCounter = data;
+                    currentCounter = data.user;
                     currentCounterId = counterId;
                     
                     // Save login state to localStorage
                     saveLoginState();
                     
                     document.getElementById('loginStatus').innerHTML = 
-                        `<div class="status success">✅ Login successful! Welcome to ${data.counter_name}</div>`;
+                        `<div class="status success">✅ Login successful! Welcome to ${data.user.counter_name}</div>`;
                     
-                    document.getElementById('counterName').textContent = data.counter_name;
+                    document.getElementById('counterName').textContent = data.user.counter_name;
                     document.getElementById('counterDescription').textContent = 
-                        `Counter ID: ${data.counter_id} | You are now logged in`;
+                        `Counter ID: ${data.user.counter_id} | You are now logged in`;
                     
                     document.getElementById('counterInfo').style.display = 'block';
                     document.getElementById('loginForm').style.display = 'none';
@@ -268,14 +286,21 @@
 
         // Load orders for current counter
         async function loadOrders() {
-            if (!currentCounterId) return;
+            if (!currentCounterId) {
+                addLogMessage(`❌ No counter ID - cannot load orders`);
+                return;
+            }
+            
+            addLogMessage(`🔄 Loading orders for counter ${currentCounterId}...`);
             
             try {
                 const response = await fetch(`http://127.0.0.1:8000/api/kds/orders/counter/${currentCounterId}/`);
                 const orders = await response.json();
                 
+                addLogMessage(`📡 Received ${orders.length} orders from API`);
                 displayOrders(orders);
             } catch (error) {
+                addLogMessage(`❌ Error loading orders: ${error.message}`);
                 document.getElementById('ordersList').innerHTML = 
                     `<div class="status error">❌ Error loading orders: ${error.message}</div>`;
             }
@@ -285,7 +310,7 @@
         function displayOrders(orders) {
             const container = document.getElementById('ordersList');
             
-            if (orders.length === 0) {
+            if (!orders || orders.length === 0) {
                 container.innerHTML = '<p>No orders assigned to your counter</p>';
                 return;
             }
@@ -296,28 +321,103 @@
             });
             
             container.innerHTML = html;
+            addLogMessage(`📋 Displayed ${orders.length} orders`);
         }
 
-        // Update item status
-        async function updateItemStatus(itemId, status) {
+        // Track active updates to prevent multiple rapid clicks
+        let activeUpdates = new Set();
+
+        // BULLETPROOF status update function
+        function updateItemStatusDirect(itemId, status) {
+            console.log('=== BUTTON CLICKED ===');
+            console.log('ItemId:', itemId);
+            console.log('Status:', status);
+            
+            addLogMessage(`🔥 BUTTON CLICKED: ${itemId} -> ${status}`);
+            
+            // Prevent any default behavior immediately
+            if (window.event) {
+                window.event.preventDefault();
+                window.event.stopPropagation();
+                window.event.stopImmediatePropagation();
+            }
+            
             try {
-                const response = await fetch('http://127.0.0.1:8000/api/kds/update_status/', {
+                // Find the item element
+                const itemElement = document.querySelector(`[data-item-id="${itemId}"]`);
+                console.log('Item element found:', itemElement);
+                
+                if (!itemElement) {
+                    addLogMessage(`❌ Item element not found: ${itemId}`);
+                    return false;
+                }
+                
+                // Get order ID and item index
+                const orderId = itemElement.getAttribute('data-order-id');
+                const itemIndex = itemElement.getAttribute('data-item-index');
+                
+                console.log('OrderId:', orderId, 'ItemIndex:', itemIndex);
+                
+                if (!orderId || itemIndex === null) {
+                    addLogMessage(`❌ Missing order data for ${itemId}`);
+                    return false;
+                }
+                
+                addLogMessage(`🔄 Making API call for order ${orderId}, item ${itemIndex}, status ${status}`);
+                
+                // Make API call with error handling
+                fetch('http://127.0.0.1:8000/api/kds/orders/update-item-status/', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ item_id: itemId, status: status })
+                    body: JSON.stringify({ 
+                        order_id: orderId, 
+                        item_index: parseInt(itemIndex), 
+                        status: status 
+                    })
+                })
+                .then(response => {
+                    console.log('API Response:', response);
+                    addLogMessage(`🔄 API response status: ${response.status}`);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('API Data:', data);
+                    addLogMessage(`🔄 API response data: ${JSON.stringify(data)}`);
+                    if (data.success) {
+                        addLogMessage(`✅ Status updated successfully`);
+                        // Update display
+                        updateItemStatusInDisplay(itemId, status);
+                    } else {
+                        addLogMessage(`❌ API error: ${data.error || 'Unknown error'}`);
+                    }
+                })
+                .catch(error => {
+                    console.error('API Error:', error);
+                    addLogMessage(`❌ API error: ${error.message}`);
                 });
                 
-                const data = await response.json();
-                
-                if (data.success) {
-                    // Reload orders to show updated status
-                    loadOrders();
-                } else {
-                    alert(`Error: ${data.error}`);
-                }
             } catch (error) {
-                alert(`Error: ${error.message}`);
+                console.error('Function Error:', error);
+                addLogMessage(`❌ Error in updateItemStatusDirect: ${error.message}`);
             }
+            
+            // Always return false to prevent any default behavior
+            return false;
+        }
+
+        // Simplified status update handler
+        function handleStatusUpdateSimple(itemId, status) {
+            return updateItemStatusDirect(itemId, status);
+        }
+
+        // Legacy function for compatibility
+        function handleStatusUpdate(itemId, status, event) {
+            return handleStatusUpdateSimple(itemId, status);
+        }
+
+        // Legacy updateItemStatus function - now just calls the direct version
+        function updateItemStatus(itemId, status) {
+            return updateItemStatusDirect(itemId, status);
         }
 
         // WebSocket connection
@@ -336,7 +436,7 @@
                 }
                 
                 const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-                const wsUrl = `${protocol}//127.0.0.1:8000/ws/kitchen/`;
+                const wsUrl = `${protocol}//127.0.0.1:8000/ws/kitchen/?counter_id=${currentCounterId}`;
                 
                 websocket = new WebSocket(wsUrl);
                 
@@ -384,38 +484,26 @@
         function handleWebSocketMessage(data) {
             switch(data.type) {
                 case 'initial_data':
-                    displayOrders(data.orders);
-                    addLogMessage(`📋 Initial data loaded: ${data.orders.length} orders`);
+                    if (data.orders && data.orders.length > 0) {
+                        displayOrders(data.orders);
+                        addLogMessage(`📋 Initial data loaded: ${data.orders.length} orders`);
+                    } else {
+                        addLogMessage(`📋 No orders in initial data`);
+                    }
                     break;
                     
                 case 'new_order':
                     addLogMessage(`🆕 New order received: ${data.order.order_number}`);
-                    
-                    // Check if this order has items for current counter
-                    const hasItemsForCounter = data.order.items && data.order.items.some(item => 
-                        item.assigned_counter == currentCounterId
-                    );
-                    
-                    if (hasItemsForCounter) {
-                        // Add the new order directly to the display
-                        addOrderToDisplay(data.order);
-                        addLogMessage(`✅ Order ${data.order.order_number} added to display`);
-                    } else {
-                        addLogMessage(`⚠️ Order ${data.order.order_number} not for this counter`);
-                    }
+                    // Add the new order directly to the display (already filtered by WebSocket)
+                    addOrderToDisplay(data.order);
+                    addLogMessage(`✅ Order ${data.order.order_number} added to display`);
                     break;
                     
                 case 'order_update':
                     addLogMessage(`🔄 Order updated: ${data.order.order_number}`);
-                    // Check if this order has items for current counter
-                    const hasItemsForCounterUpdate = data.order.items && data.order.items.some(item => 
-                        item.assigned_counter == currentCounterId
-                    );
-                    if (hasItemsForCounterUpdate) {
-                        // Update the order directly in the display
-                        updateOrderInDisplay(data.order);
-                        addLogMessage(`✅ Order ${data.order.order_number} updated in display`);
-                    }
+                    // Update the order directly in the display (already filtered by WebSocket)
+                    updateOrderInDisplay(data.order);
+                    addLogMessage(`✅ Order ${data.order.order_number} updated in display`);
                     break;
                     
                 case 'order_deleted':
@@ -503,25 +591,27 @@
         function createOrderHtml(order) {
             let html = `
                 <div class="order-item" data-order-id="${order.id}">
-                    <h4>${order.order_number} - Table ${order.table_number}</h4>
-                    <p><strong>Customer:</strong> ${order.customer_name}</p>
-                    <p><strong>Total:</strong> $${order.total_amount}</p>
+                    <h4>${order.order_number || 'N/A'} - Table ${order.table_number || 'N/A'}</h4>
+                    <p><strong>Customer:</strong> ${order.customer_name || 'N/A'}</p>
+                    <p><strong>Total:</strong> $${order.total_amount || 0}</p>
                     <div class="order-items">
             `;
             
-            order.items.forEach(item => {
+            order.items.forEach((item, index) => {
+                // Generate a unique item ID for this specific order and item
+                const itemId = `item_${order.id}_${index}`;
                 html += `
-                    <div class="order-item status-${item.status}" data-item-id="${item.id}">
+                    <div class="order-item status-${item.status || 'pending'}" data-item-id="${itemId}" data-order-id="${order.id}" data-item-index="${index}">
                         <div>
-                            <strong>${item.name}</strong> x${item.quantity}
-                            <br><small>${item.category}</small>
+                            <strong>${item.name || 'Unknown Item'}</strong> x${item.quantity || 1}
+                            <br><small>${item.category || 'Unknown Category'}</small>
                         </div>
                         <div>
-                            <span class="status-badge status-${item.status}">${item.status}</span>
-                            <button class="update-btn btn-new" onclick="updateItemStatus(${item.id}, 'new')">New</button>
-                            <button class="update-btn btn-progress" onclick="updateItemStatus(${item.id}, 'in_progress')">Start</button>
-                            <button class="update-btn btn-ready" onclick="updateItemStatus(${item.id}, 'ready')">Ready</button>
-                            <button class="update-btn btn-cancel" onclick="updateItemStatus(${item.id}, 'cancelled')">Cancel</button>
+                            <span class="status-badge status-${item.status || 'pending'}">${item.status || 'pending'}</span>
+                            <span class="update-btn btn-new" onclick="updateStatus('${itemId}', 'pending')" style="cursor: pointer; padding: 5px 10px; margin: 2px; background-color: #28a745; color: white; border-radius: 3px; display: inline-block;">New</span>
+                            <span class="update-btn btn-progress" onclick="updateStatus('${itemId}', 'in_progress')" style="cursor: pointer; padding: 5px 10px; margin: 2px; background-color: #ffc107; color: black; border-radius: 3px; display: inline-block;">Start</span>
+                            <span class="update-btn btn-ready" onclick="updateStatus('${itemId}', 'ready')" style="cursor: pointer; padding: 5px 10px; margin: 2px; background-color: #dc3545; color: white; border-radius: 3px; display: inline-block;">Ready</span>
+                            <span class="update-btn btn-cancel" onclick="updateStatus('${itemId}', 'cancelled')" style="cursor: pointer; padding: 5px 10px; margin: 2px; background-color: #6c757d; color: white; border-radius: 3px; display: inline-block;">Cancel</span>
                         </div>
                     </div>
                 `;
@@ -554,12 +644,205 @@
 
         // Real-time updates via WebSocket - no need for polling
         
+        // Global error handler to prevent page crashes
+        window.addEventListener('error', function(event) {
+            console.error('Global error caught:', event.error);
+            addLogMessage(`❌ Error: ${event.error?.message || 'Unknown error'}`);
+            // Prevent the error from causing a page reload
+            event.preventDefault();
+            event.stopPropagation();
+            return false;
+        });
+
+        // Removed global click handler to prevent interference
+
+        // Additional error handler for uncaught exceptions
+        window.addEventListener('uncaughtException', function(event) {
+            console.error('Uncaught exception:', event.error);
+            addLogMessage(`❌ Uncaught exception: ${event.error?.message || 'Unknown error'}`);
+            event.preventDefault();
+            return false;
+        });
+
+        // Prevent any form submissions from causing page reloads (except login form)
+        document.addEventListener('submit', function(event) {
+            // Allow login form to work normally
+            if (event.target.id === 'loginForm') {
+                console.log('Login form submission allowed');
+                return; // Let the login form handle its own submission
+            }
+            
+            console.log('Form submission prevented:', event.target);
+            addLogMessage('🚫 Form submission prevented to avoid page reload');
+            event.preventDefault();
+            event.stopPropagation();
+            return false;
+        });
+
+        // Removed global button click detector to prevent interference
+
+        // Remove beforeunload handler - it was causing the reload dialog
+        // The beforeunload handler was the root cause of the "Reload site?" dialog
+
+        // Handle unhandled promise rejections
+        window.addEventListener('unhandledrejection', function(event) {
+            console.error('Unhandled promise rejection:', event.reason);
+            addLogMessage(`❌ Promise error: ${event.reason?.message || 'Unknown promise error'}`);
+            // Prevent the error from causing a page reload
+            event.preventDefault();
+        });
+
+        // Removed beforeunload handler - it was causing the reload dialog
+
+        // Simple function that will definitely work
+        function updateStatus(itemId, status) {
+            console.log('updateStatus called:', itemId, status);
+            addLogMessage(`🔥 Status update: ${itemId} -> ${status}`);
+            
+            // Find the item element
+            const itemElement = document.querySelector(`[data-item-id="${itemId}"]`);
+            if (!itemElement) {
+                addLogMessage(`❌ Item element not found: ${itemId}`);
+                return;
+            }
+            
+            // Get order ID and item index
+            const orderId = itemElement.getAttribute('data-order-id');
+            const itemIndex = itemElement.getAttribute('data-item-index');
+            
+            if (!orderId || itemIndex === null) {
+                addLogMessage(`❌ Missing order data for ${itemId}`);
+                return;
+            }
+            
+            addLogMessage(`🔄 Making API call for order ${orderId}, item ${itemIndex}, status ${status}`);
+            
+            // Make API call
+            fetch('http://127.0.0.1:8000/api/kds/orders/update-item-status/', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    order_id: orderId, 
+                    item_index: parseInt(itemIndex), 
+                    status: status 
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                addLogMessage(`🔄 API response: ${JSON.stringify(data)}`);
+                if (data.success) {
+                    addLogMessage(`✅ Status updated successfully`);
+                    // Update display
+                    updateItemStatusInDisplay(itemId, status);
+                } else {
+                    addLogMessage(`❌ API error: ${data.error || 'Unknown error'}`);
+                }
+            })
+            .catch(error => {
+                addLogMessage(`❌ API error: ${error.message}`);
+                console.error('API error:', error);
+            });
+        }
+
+        // Make the function globally available
+        window.updateItemStatusDirect = updateItemStatusDirect;
+        window.updateStatus = updateStatus;
+
+        // Global error handler to prevent page reloads
+        window.addEventListener('error', function(event) {
+            console.error('Global error caught:', event.error);
+            addLogMessage(`❌ Global error: ${event.error?.message || 'Unknown error'}`);
+            event.preventDefault();
+            event.stopPropagation();
+            return false;
+        });
+
+        // Prevent any form submissions that might cause reloads (except login form)
+        window.addEventListener('submit', function(event) {
+            if (event.target.id !== 'loginForm') {
+                console.log('Form submission prevented:', event.target);
+                addLogMessage('🚫 Form submission prevented');
+                event.preventDefault();
+                event.stopPropagation();
+                return false;
+            }
+        });
+
+        // Orders form removed - no longer needed
+
+        // Load available counters
+        async function loadAvailableCounters() {
+            try {
+                const response = await fetch('http://127.0.0.1:8000/api/kds/counters/');
+                const counters = await response.json();
+                
+                const select = document.getElementById('counterSelect');
+                
+                if (counters.length === 0) {
+                    select.innerHTML = '<option value="">No counters available - Create counters first</option>';
+                    addLogMessage('⚠️ No counters available. Please create counters in the Order Management page first.');
+                } else {
+                    select.innerHTML = '<option value="">Choose your counter...</option>';
+                    counters.forEach(counter => {
+                        select.innerHTML += `<option value="${counter.id}">${counter.name} (PIN: ${counter.pin})</option>`;
+                    });
+                    addLogMessage(`📋 Loaded ${counters.length} available counters`);
+                }
+            } catch (error) {
+                addLogMessage(`❌ Error loading counters: ${error.message}`);
+            }
+        }
+
         // Initialize on page load
         window.onload = function() {
             addLogMessage('🚀 KDS System Loaded - Please login to your counter');
-            // Load saved login state if available
-            loadLoginState();
+            
+            // Load available counters
+            loadAvailableCounters();
+            
+            // Set up event delegation for dynamically created buttons
+            setupEventDelegation();
+            
+            // Check if user wants to force fresh login
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.get('fresh') === 'true') {
+                clearLoginState();
+                addLogMessage('🔄 Fresh login requested - please login again');
+            } else {
+                // Load saved login state if available
+                loadLoginState();
+            }
         };
+
+        // Simple event delegation setup for control buttons only
+        function setupEventDelegation() {
+            // Only handle specific control buttons by ID
+            document.addEventListener('click', function(event) {
+                if (event.target.id === 'refreshOrdersBtn') {
+                    addLogMessage('🔄 Refresh Orders button clicked');
+                    event.preventDefault();
+                    event.stopPropagation();
+                    loadOrders();
+                    return false;
+                }
+                
+                if (event.target.id === 'logoutBtn') {
+                    addLogMessage('🚪 Logout button clicked');
+                    event.preventDefault();
+                    event.stopPropagation();
+                    logout();
+                    return false;
+                }
+                
+                if (event.target.id === 'clearLoginBtn') {
+                    addLogMessage('🗑️ Clear Login button clicked');
+                    event.preventDefault();
+                    event.stopPropagation();
+                    clearLoginState();
+                    return false;
+                }
+            });
+        }
     </script>
 </body>
 </html>

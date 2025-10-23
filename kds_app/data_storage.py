@@ -35,15 +35,31 @@ class OrderDataStorage:
         data = cls._load_data()
         order_id = str(data['next_id'])
         
+        # Calculate total amount from items and add IDs to items
+        items = order_data.get('items', [])
+        total_amount = 0
+        
+        for i, item in enumerate(items):
+            # Add ID to each item if not present
+            if 'id' not in item:
+                item['id'] = f"{order_id}_{i}"
+            # Add status if not present
+            if 'status' not in item:
+                item['status'] = 'pending'
+            # Calculate total amount
+            total_amount += item.get('price', 0) * item.get('quantity', 1)
+        
         order = {
             'id': order_id,
-            'items': order_data.get('items', []),
+            'order_number': f"ORD-{order_id.zfill(4)}",
+            'items': items,
             'status': 'pending',
             'created_at': datetime.now().isoformat(),
             'updated_at': datetime.now().isoformat(),
             'customer_name': order_data.get('customer_name', ''),
             'table_number': order_data.get('table_number', ''),
             'notes': order_data.get('notes', ''),
+            'total_amount': total_amount,
             'estimated_time': order_data.get('estimated_time', 15)
         }
         
@@ -114,4 +130,39 @@ class OrderDataStorage:
         """Clear all orders"""
         data = {'orders': {}, 'next_id': 1}
         cls._save_data(data)
+    
+    @classmethod
+    def update_item_status(cls, order_id: str, item_index: int, status: str) -> bool:
+        """Update status of a specific item in an order"""
+        data = cls._load_data()
+        
+        if order_id in data['orders']:
+            order = data['orders'][order_id]
+            if item_index < len(order['items']):
+                order['items'][item_index]['status'] = status
+                order['updated_at'] = datetime.now().isoformat()
+                
+                # Check if all items are ready
+                all_items_ready = all(
+                    item.get('status') == 'ready' 
+                    for item in order['items']
+                )
+                
+                if all_items_ready:
+                    order['status'] = 'ready_to_serve'
+                elif any(item.get('status') == 'in_progress' for item in order['items']):
+                    order['status'] = 'in_progress'
+                else:
+                    order['status'] = 'pending'
+                
+                cls._save_data(data)
+                return True
+        
+        return False
+    
+    @classmethod
+    def get_ready_to_serve_orders(cls) -> List[Dict]:
+        """Get orders that are ready to serve (all items ready)"""
+        data = cls._load_data()
+        return [order for order in data['orders'].values() if order['status'] == 'ready_to_serve']
 
