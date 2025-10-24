@@ -116,6 +116,11 @@
                         <input type="text" id="counterDescription" placeholder="e.g., Coffee and hot beverages">
                     </div>
                 </div>
+                <div style="margin-bottom: 15px;">
+                    <label for="counterCategories">Categories (comma-separated):</label>
+                    <input type="text" id="counterCategories" placeholder="e.g., Main Course, Rice, Curry" style="width: 100%;">
+                    <small style="color: #6c757d;">Items with these categories will be automatically assigned to this counter</small>
+                </div>
                 <button type="submit" style="background-color: #28a745; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer;">
                     Create Counter
                 </button>
@@ -138,6 +143,13 @@
     <!-- Order Creation Form -->
     <div class="container">
         <h2>📝 Create New Order</h2>
+        <div style="background-color: #e7f3ff; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #007bff;">
+            <h4 style="margin: 0 0 10px 0; color: #007bff;">🤖 Auto-Assignment Feature</h4>
+            <p style="margin: 0; color: #333; font-size: 14px;">
+                <strong>Smart Counter Assignment:</strong> When you create an order, items will be automatically assigned to the correct counter based on their category. 
+                Make sure to set up category assignments for your counters first!
+            </p>
+        </div>
         <form id="orderForm">
             <div class="form-row">
                 <div class="form-group">
@@ -156,20 +168,18 @@
             </div>
             
             <h3>Order Items:</h3>
+            <div style="background-color: #e7f3ff; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #007bff;">
+                <h4 style="margin: 0 0 10px 0; color: #007bff;">🤖 Fully Automated System</h4>
+                <p style="margin: 0; color: #333; font-size: 14px;">
+                    <strong>Smart Auto-Assignment:</strong> Just enter the food name and quantity. The system will automatically assign items to the correct counter based on predefined categories. No manual counter selection needed!
+                </p>
+            </div>
             <div id="itemsContainer">
                 <div class="item-row">
-                    <input type="text" placeholder="Item name" class="item-name">
-                    <select class="item-category">
-                        <option value="Main Course">Main Course</option>
-                        <option value="Appetizer">Appetizer</option>
-                        <option value="Beverage">Beverage</option>
-                        <option value="Dessert">Dessert</option>
-                    </select>
+                    <input type="text" placeholder="Food name (e.g., Chicken Biryani)" class="item-name">
                     <input type="number" placeholder="Qty" class="item-quantity" value="1" min="1">
-                    <input type="number" placeholder="Price" class="item-price" step="0.01" min="0">
-                    <select class="item-counter" id="itemCounter1">
-                        <!-- Counters will be loaded dynamically -->
-                    </select>
+                    <input type="number" placeholder="Price (optional)" class="item-price" step="0.01" min="0">
+                    <span class="auto-assignment-info" style="color: #28a745; font-size: 12px; font-weight: bold;">🤖 Auto-assigned</span>
                     <button type="button" onclick="removeItem(this)" class="danger">Remove</button>
                 </div>
             </div>
@@ -255,13 +265,18 @@
             let html = '<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 15px;">';
             
             counters.forEach(counter => {
+                const categories = counter.categories || [];
+                const categoriesText = categories.length > 0 ? categories.join(', ') : 'No categories assigned';
+                
                 html += `
                     <div style="background-color: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #dee2e6;">
                         <h4 style="margin: 0 0 10px 0;">${counter.name}</h4>
                         <p style="margin: 5px 0; color: #666;">PIN: <strong>${counter.pin}</strong></p>
                         <p style="margin: 5px 0; color: #666; font-size: 14px;">${counter.description || 'No description'}</p>
+                        <p style="margin: 5px 0; color: #28a745; font-size: 13px; font-weight: bold;">Categories: ${categoriesText}</p>
                         <div style="margin-top: 10px;">
                             <button onclick="editCounter(${counter.id})" style="background-color: #007bff; color: white; padding: 4px 8px; border: none; border-radius: 4px; margin-right: 5px; cursor: pointer;">Edit</button>
+                            <button onclick="editCategories(${counter.id})" style="background-color: #28a745; color: white; padding: 4px 8px; border: none; border-radius: 4px; margin-right: 5px; cursor: pointer;">Categories</button>
                             <button onclick="deleteCounter(${counter.id})" style="background-color: #dc3545; color: white; padding: 4px 8px; border: none; border-radius: 4px; cursor: pointer;">Delete</button>
                         </div>
                     </div>
@@ -288,32 +303,53 @@
             const itemRow = document.createElement('div');
             itemRow.className = 'item-row';
             itemRow.innerHTML = `
-                <input type="text" placeholder="Item name" class="item-name">
-                <select class="item-category">
-                    <option value="Main Course">Main Course</option>
-                    <option value="Appetizer">Appetizer</option>
-                    <option value="Beverage">Beverage</option>
-                    <option value="Dessert">Dessert</option>
-                </select>
+                <input type="text" placeholder="Food name (e.g., Chicken Biryani)" class="item-name">
                 <input type="number" placeholder="Qty" class="item-quantity" value="1" min="1">
-                <input type="number" placeholder="Price" class="item-price" step="0.01" min="0">
-                <select class="item-counter">
-                    <!-- Counters will be loaded dynamically -->
-                </select>
+                <input type="number" placeholder="Price (optional)" class="item-price" step="0.01" min="0">
+                <span class="auto-assignment-info" style="color: #28a745; font-size: 12px; font-weight: bold;">🤖 Auto-assigned</span>
                 <button type="button" onclick="removeItem(this)" class="danger">Remove</button>
             `;
             container.appendChild(itemRow);
-            
-            // Update the new select with available counters
-            const newSelect = itemRow.querySelector('.item-counter');
-            newSelect.innerHTML = '<option value="">Select Counter...</option>';
-            availableCounters.forEach(counter => {
-                newSelect.innerHTML += `<option value="${counter.id}">${counter.name}</option>`;
-            });
         }
 
         function removeItem(button) {
             button.parentElement.remove();
+        }
+
+        // Auto-detect category from food name
+        function detectCategoryFromFoodName(foodName) {
+            const name = foodName.toLowerCase();
+            
+            // Check for biryani items (should go to counter 1)
+            if (name.includes('biryani') || name.includes('briyani') || 
+                name.includes('chicken') || name.includes('mutton') || 
+                name.includes('prawn') || name.includes('beef')) {
+                return 'Biryani';
+            }
+            
+            // Check for beverages
+            if (name.includes('juice') || name.includes('coffee') || 
+                name.includes('tea') || name.includes('soda') || 
+                name.includes('water') || name.includes('drink')) {
+                return 'Beverage';
+            }
+            
+            // Check for desserts
+            if (name.includes('dessert') || name.includes('sweet') || 
+                name.includes('cake') || name.includes('ice cream') || 
+                name.includes('kesari') || name.includes('kulfi')) {
+                return 'Dessert';
+            }
+            
+            // Check for main course items
+            if (name.includes('burger') || name.includes('pizza') || 
+                name.includes('pasta') || name.includes('rice') || 
+                name.includes('curry') || name.includes('gravy')) {
+                return 'Main Course';
+            }
+            
+            // Default to Main Course if no match
+            return 'Main Course';
         }
 
         // Form submission
@@ -327,22 +363,23 @@
                 items: []
             };
             
-            // Collect items
+            // Collect items with automatic counter assignment
             const itemRows = document.querySelectorAll('.item-row');
             itemRows.forEach(row => {
                 const name = row.querySelector('.item-name').value;
-                const category = row.querySelector('.item-category').value;
                 const quantity = parseInt(row.querySelector('.item-quantity').value);
-                const price = parseFloat(row.querySelector('.item-price').value);
-                const counter = parseInt(row.querySelector('.item-counter').value);
+                const price = parseFloat(row.querySelector('.item-price').value) || 0;
                 
                 if (name && quantity > 0) {
+                    // Auto-detect category based on food name
+                    const category = detectCategoryFromFoodName(name);
+                    
                     formData.items.push({
                         name: name,
                         category: category,
                         quantity: quantity,
                         price: price,
-                        assigned_counter: counter
+                        // assigned_counter will be set by backend based on category
                     });
                 }
             });
@@ -366,20 +403,10 @@
                     document.getElementById('orderForm').reset();
                     document.getElementById('itemsContainer').innerHTML = `
                         <div class="item-row">
-                            <input type="text" placeholder="Item name" class="item-name">
-                            <select class="item-category">
-                                <option value="Main Course">Main Course</option>
-                                <option value="Appetizer">Appetizer</option>
-                                <option value="Beverage">Beverage</option>
-                                <option value="Dessert">Dessert</option>
-                            </select>
+                            <input type="text" placeholder="Food name (e.g., Chicken Biryani)" class="item-name">
                             <input type="number" placeholder="Qty" class="item-quantity" value="1" min="1">
-                            <input type="number" placeholder="Price" class="item-price" step="0.01" min="0">
-                            <select class="item-counter">
-                                <option value="1">Main Kitchen</option>
-                                <option value="2">Juice Counter</option>
-                                <option value="3">Dessert Counter</option>
-                            </select>
+                            <input type="number" placeholder="Price (optional)" class="item-price" step="0.01" min="0">
+                            <span class="auto-assignment-info" style="color: #28a745; font-size: 12px; font-weight: bold;">🤖 Auto-assigned</span>
                             <button type="button" onclick="removeItem(this)" class="danger">Remove</button>
                         </div>
                     `;
@@ -396,6 +423,7 @@
             const name = document.getElementById('counterName').value;
             const pin = document.getElementById('counterPin').value;
             const description = document.getElementById('counterDescription').value;
+            const categoriesText = document.getElementById('counterCategories').value;
             
             if (!name || !pin) {
                 alert('Please fill in counter name and PIN');
@@ -407,6 +435,9 @@
                 return;
             }
             
+            // Parse categories from comma-separated string
+            const categories = categoriesText ? categoriesText.split(',').map(cat => cat.trim()).filter(cat => cat) : [];
+            
             try {
                 const response = await fetch('http://127.0.0.1:8000/api/kds/counters/create/', {
                     method: 'POST',
@@ -417,6 +448,21 @@
                 const data = await response.json();
                 if (response.ok) {
                     log(`✅ Counter created: ${name} (ID: ${data.counter_id})`);
+                    
+                    // Assign categories if provided
+                    if (categories.length > 0) {
+                        try {
+                            await fetch(`http://127.0.0.1:8000/api/kds/counters/${data.counter_id}/categories/`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ categories })
+                            });
+                            log(`✅ Categories assigned: ${categories.join(', ')}`);
+                        } catch (error) {
+                            log(`⚠️ Counter created but failed to assign categories: ${error.message}`);
+                        }
+                    }
+                    
                     document.getElementById('counterForm').reset();
                     loadCounters(); // Reload counters
                 } else {
@@ -487,6 +533,44 @@
             } catch (error) {
                 log(`❌ Error: ${error.message}`);
                 alert('Failed to delete counter');
+            }
+        }
+
+        async function editCategories(counterId) {
+            const counter = availableCounters.find(c => c.id === counterId);
+            if (!counter) {
+                alert('Counter not found');
+                return;
+            }
+            
+            const currentCategories = counter.categories || [];
+            const newCategories = prompt(
+                `Edit categories for ${counter.name}:\n(comma-separated)`, 
+                currentCategories.join(', ')
+            );
+            
+            if (newCategories === null) return; // User cancelled
+            
+            const categories = newCategories ? newCategories.split(',').map(cat => cat.trim()).filter(cat => cat) : [];
+            
+            try {
+                const response = await fetch(`http://127.0.0.1:8000/api/kds/counters/${counterId}/categories/`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ categories })
+                });
+                
+                if (response.ok) {
+                    log(`✅ Categories updated for ${counter.name}: ${categories.join(', ')}`);
+                    loadCounters(); // Reload counters
+                } else {
+                    const data = await response.json();
+                    log(`❌ Error: ${data.error}`);
+                    alert(data.error);
+                }
+            } catch (error) {
+                log(`❌ Error: ${error.message}`);
+                alert('Failed to update categories');
             }
         }
 

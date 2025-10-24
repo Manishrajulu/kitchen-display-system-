@@ -138,6 +138,7 @@
             
             <button type="submit" class="login-btn">🔐 Login to Counter</button>
             <button type="button" onclick="clearLoginState()" style="background-color: #6c757d; color: white; margin-left: 10px;">🗑️ Clear Saved Login</button>
+            <button type="button" onclick="loadAvailableCounters()" style="background-color: #28a745; color: white; margin-left: 10px;">🔄 Refresh Counters</button>
         </form>
         
         <div id="loginStatus"></div>
@@ -773,8 +774,17 @@
         // Load available counters
         async function loadAvailableCounters() {
             try {
+                addLogMessage('🔄 Loading counters from API...');
                 const response = await fetch('http://127.0.0.1:8000/api/kds/counters/');
+                addLogMessage(`📡 API Response status: ${response.status}`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+                
                 const counters = await response.json();
+                addLogMessage(`📋 Received ${counters.length} counters from API`);
+                console.log('Counters received:', counters);
                 
                 const select = document.getElementById('counterSelect');
                 
@@ -785,11 +795,13 @@
                     select.innerHTML = '<option value="">Choose your counter...</option>';
                     counters.forEach(counter => {
                         select.innerHTML += `<option value="${counter.id}">${counter.name} (PIN: ${counter.pin})</option>`;
+                        addLogMessage(`✅ Added counter: ${counter.name} (ID: ${counter.id})`);
                     });
                     addLogMessage(`📋 Loaded ${counters.length} available counters`);
                 }
             } catch (error) {
                 addLogMessage(`❌ Error loading counters: ${error.message}`);
+                console.error('Counter loading error:', error);
             }
         }
 

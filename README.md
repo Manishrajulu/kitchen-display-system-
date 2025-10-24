@@ -1,30 +1,21 @@
 # Kitchen Display System (KDS)
 
-A complete Django-based Kitchen Display System with real-time WebSocket updates, order management, and fully customizable counter system for restaurants.
+A fully automated Django-based Kitchen Display System with real-time WebSocket updates, intelligent order routing, and smart counter management for restaurants.
 
-## Features
+## 🤖 Key Features
 
-- **User-Created Counter System**: Create unlimited kitchen counters with custom names and PINs
-- **Real-time Order Management**: Create, view, and update orders with live WebSocket updates
+- **Fully Automated Order Routing**: Just enter food name and quantity - the system automatically assigns items to the correct counter
+- **Smart Category Detection**: Automatically detects food categories from item names (Biryani, Beverage, Main Course, Dessert)
+- **Real-time Order Management**: Live WebSocket updates for instant order status changes
 - **Counter Isolation**: Orders only appear on assigned counters - no cross-contamination
 - **PIN-based Authentication**: Simple and secure PIN-based login for kitchen staff
 - **Persistent Login State**: Login state persists across page refreshes using localStorage
-- **Order Creation Interface**: Dedicated interface for creating new orders with counter assignment
-- **Real-time Updates**: WebSocket-based live order status updates per counter
 - **No Database Required**: Lightweight, in-memory system for quick deployment
 - **Complete Flexibility**: Start with empty system, create exactly the counters you need
 
-## Tech Stack
+## 🚀 Quick Start
 
-- **Backend**: Python 3.11+, Django 5+, Django REST Framework
-- **Real-time**: Django Channels (WebSockets), Uvicorn ASGI server
-- **Frontend**: HTML5, JavaScript, CSS3 with localStorage persistence
-- **Authentication**: PIN-based authentication system
-- **CORS**: Cross-origin resource sharing for frontend integration
-
-## Quick Start
-
-### 1. Setup Virtual Environment (Recommended)
+### 1. Setup Virtual Environment
 
 ```bash
 # Create virtual environment
@@ -56,160 +47,97 @@ uvicorn kds_project.asgi:application --reload --port 8000
 
 - **Order Management**: http://127.0.0.1:8000/templates/order_management.html
 - **Kitchen Staff Login**: http://127.0.0.1:8000/templates/kitchen_login.html
-- **API Documentation**: See API_DOCUMENTATION.md
 
-That's it! Your KDS system is ready with real-time order management and WebSocket updates.
+## 🎯 How It Works
 
-## 🔐 Kitchen Staff Login
+### 1. Setup Counters (One-time)
+1. Go to **Order Management** page
+2. Create counters for your kitchen stations:
+   - **Counter 1**: "Biryani Station" (PIN: 1702) - Categories: Biryani, CHICKEN BRIYANI, MUTTON BRIYANI
+   - **Counter 2**: "Main Kitchen" (PIN: 2341) - Categories: Beverage, Main Course, Dessert
 
-### First Time Setup:
-1. **Create Counters First**: Go to Order Management page to create your counters
-2. **Add Counter Details**: Name, 4-digit PIN, and description
-3. **Create as Many as Needed**: Add counters for each kitchen station
+### 2. Create Orders (Fully Automated)
+1. Just enter **food name** and **quantity** - that's it!
+2. System automatically:
+   - Detects category from food name
+   - Assigns to correct counter
+   - Routes order to appropriate kitchen station
 
-### Login Process:
-1. Open http://127.0.0.1:8000/templates/kitchen_login.html
-2. Select your counter from the dropdown (if no counters exist, create them first)
+### 3. Kitchen Staff Login
+1. Staff login to their counter with PIN
+2. See only orders assigned to their station
+3. Update item statuses in real-time
+
+## 🍽️ Smart Category Detection
+
+The system automatically detects categories from food names:
+
+| Food Name | Detected Category | Assigned Counter |
+|-----------|------------------|------------------|
+| "Chicken Biryani" | Biryani | Counter 1 |
+| "Orange Juice" | Beverage | Counter 2 |
+| "Burger" | Main Course | Counter 2 |
+| "Kesari" | Dessert | Counter 2 |
+| "Coffee" | Beverage | Counter 2 |
+
+## 📋 Order Creation Examples
+
+### Example 1: Biryani Order
+```
+Customer: John Doe
+Table: T-01
+Items:
+- "Chicken Biryani" (Qty: 1) → Auto-assigned to Counter 1
+- "Mutton Biryani" (Qty: 2) → Auto-assigned to Counter 1
+```
+
+### Example 2: Mixed Order
+```
+Customer: Alice Smith
+Table: T-02
+Items:
+- "Orange Juice" (Qty: 2) → Auto-assigned to Counter 2
+- "Burger" (Qty: 1) → Auto-assigned to Counter 2
+- "Kesari" (Qty: 1) → Auto-assigned to Counter 2
+```
+
+## 🔐 Kitchen Staff Workflow
+
+### Login Process
+1. Open Kitchen Login page
+2. Select your counter from dropdown
 3. Enter your 4-digit PIN
 4. Click "Login to Counter"
-5. Your login state will be automatically saved and restored on page refresh
+5. See orders assigned to your station
 
-### Login Flow:
-1. Staff selects their counter
-2. Enters 4-digit PIN
-3. System authenticates and shows assigned orders
-4. Staff can update item statuses in real-time
+### Order Management
+- **New**: Item just received
+- **Start**: Kitchen staff starts preparing
+- **Ready**: Item is ready for pickup
+- **Cancel**: Item cancelled
 
-## 📋 Order Management
-
-### First Time Setup:
-1. **Create Your Counters**: Use the Counter Management section to create counters
-2. **Add Counter Details**: Name, PIN, and description for each kitchen station
-3. **Create as Many as Needed**: Add counters for Coffee Station, Grill, Pizza, etc.
-
-### Creating Orders:
-1. Open http://127.0.0.1:8000/templates/order_management.html
-2. Create counters if none exist (see Counter Management section)
-3. Fill in customer details (table number, customer name, notes)
-4. Add order items with quantities, prices, and assigned counters
-5. Click "Create Order"
-6. Orders will appear in real-time on the assigned kitchen counters only
-
-### Order Status Updates:
-- Kitchen staff can update item statuses in real-time
-- Status changes are immediately visible across all connected displays
-- Login state persists even when orders are created from other pages
-
-## API Endpoints
+## 🛠️ API Endpoints
 
 ### Authentication
-- `POST /api/kds/login/` - KDS counter PIN login
+- `POST /api/kds/login/` - Counter PIN login
 
 ### Orders
 - `GET /api/kds/orders/` - Get all orders
-- `POST /api/kds/orders/create/` - Create new order
+- `POST /api/kds/orders/create/` - Create new order (auto-assignment)
 - `GET /api/kds/orders/counter/<counter_id>/` - Get orders for specific counter
 - `POST /api/kds/orders/update-item-status/` - Update item status
 
 ### Counters
 - `GET /api/kds/counters/` - Get all available counters
+- `POST /api/kds/counters/create/` - Create new counter
+- `POST /api/kds/counters/<id>/categories/` - Assign categories to counter
 
-## WebSocket Endpoints
+## 🌐 WebSocket Endpoints
 
 - `ws://127.0.0.1:8000/ws/kitchen/?counter_id=<id>` - Real-time updates for specific counter
 
-## 🔧 Counter Management
+## 📁 Project Structure
 
-### Creating Counters:
-1. **Go to Order Management page**
-2. **Use Counter Management section** to create counters
-3. **Fill in details**: Name, 4-digit PIN, Description
-4. **Click "Create Counter"**
-5. **Repeat for each kitchen station**
-
-### Managing Counters:
-- **Edit**: Click "Edit" button on any counter
-- **Delete**: Click "Delete" button on any counter
-- **Reset**: Click "Delete All Counters" to start fresh
-
-### Counter Features:
-- **Unlimited Counters**: Create as many as you need
-- **Custom Names**: Name them however you want (Coffee Station, Grill, Pizza, etc.)
-- **Unique PINs**: Each counter gets a 4-digit PIN
-- **Real-time Updates**: Changes appear immediately
-- **Complete Control**: Edit or delete any counter anytime
-
-## Usage Examples
-
-### 1. Create Counter
-```bash
-curl -X POST http://localhost:8000/api/kds/counters/create/ \
-  -H "Content-Type: application/json" \
-  -d '{"name": "Coffee Station", "pin": "1111", "description": "Coffee and hot beverages"}'
-```
-
-### 2. Counter Login
-```bash
-curl -X POST http://localhost:8000/api/kds/login/ \
-  -H "Content-Type: application/json" \
-  -d '{"counter_id": 1, "pin": "1111"}'
-```
-
-### 3. Get Orders for Counter
-```bash
-curl http://localhost:8000/api/kds/orders/counter/1/
-```
-
-### 4. Create New Order
-```bash
-curl -X POST http://localhost:8000/api/kds/orders/create/ \
-  -H "Content-Type: application/json" \
-  -d '{
-    "table_number": "T-10",
-    "customer_name": "Alice Johnson",
-    "total_amount": 35.50,
-    "items": [
-      {
-        "name": "Chicken Burger",
-        "category": "Main Course",
-        "quantity": 1,
-        "price": 18.00,
-        "assigned_counter": 1
-      },
-      {
-        "name": "Coffee",
-        "category": "Beverage",
-        "quantity": 2,
-        "price": 8.00,
-        "assigned_counter": 1
-      }
-    ]
-  }'
-```
-
-## WebSocket Usage
-
-Connect to WebSocket for real-time updates:
-
-```javascript
-const ws = new WebSocket('ws://localhost:8000/ws/kds/1/');
-
-ws.onmessage = function(event) {
-    const data = JSON.parse(event.data);
-    console.log('Received:', data);
-};
-
-// Update item status
-ws.send(JSON.stringify({
-    type: 'update_item_status',
-    item_id: 1,
-    status: 'ready'
-}));
-```
-
-## Development
-
-### Project Structure
 ```
 kds_project/
 ├── kds_project/          # Main project settings
@@ -232,14 +160,58 @@ kds_project/
 └── README.md           # This file
 ```
 
-### Adding New Features
+## 🧪 Testing the System
 
-1. **New API Endpoints**: Add to `kds_app/views.py`
-2. **WebSocket Events**: Extend `kds_app/consumers.py`
-3. **Data Storage**: Update `kds_app/data_storage.py`
-4. **Frontend**: Update HTML templates in `templates/` directory
+### 1. Create Test Counters
+```bash
+# Create Biryani Counter
+curl -X POST http://127.0.0.1:8000/api/kds/counters/create/ \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Biryani Station", "pin": "1702", "description": "Biryani and rice dishes"}'
 
-## Production Deployment
+# Assign categories
+curl -X POST http://127.0.0.1:8000/api/kds/counters/1/categories/ \
+  -H "Content-Type: application/json" \
+  -d '{"categories": ["Biryani", "CHICKEN BRIYANI", "MUTTON BRIYANI"]}'
+```
+
+### 2. Create Test Order
+```bash
+curl -X POST http://127.0.0.1:8000/api/kds/orders/create/ \
+  -H "Content-Type: application/json" \
+  -d '{
+    "table_number": "T-01",
+    "customer_name": "Test Customer",
+    "items": [
+      {
+        "name": "Chicken Biryani",
+        "category": "Biryani",
+        "quantity": 1,
+        "price": 15.00
+      }
+    ]
+  }'
+```
+
+### 3. Check Counter Orders
+```bash
+# Check Biryani Station orders
+curl http://127.0.0.1:8000/api/kds/orders/counter/1/
+```
+
+## 🔧 Configuration
+
+### Counter Categories
+- **Biryani Station**: Biryani, CHICKEN BRIYANI, MUTTON BRIYANI, PRAWN BRIYANI, BEEF BRIYANI
+- **Main Kitchen**: Main Course, Beverage, Dessert, lemon juice, orange juice, apple juice
+
+### Smart Detection Rules
+- **Biryani Items**: Contains "biryani", "briyani", "chicken", "mutton", "prawn", "beef"
+- **Beverages**: Contains "juice", "coffee", "tea", "soda", "water", "drink"
+- **Desserts**: Contains "dessert", "sweet", "cake", "ice cream", "kesari", "kulfi"
+- **Main Course**: Contains "burger", "pizza", "pasta", "rice", "curry", "gravy"
+
+## 🚀 Production Deployment
 
 For production deployment:
 
@@ -250,6 +222,10 @@ For production deployment:
 5. Set up proper logging
 6. Use environment variables for secrets
 
-## License
+## 📄 License
 
 This project is licensed under the MIT License.
+
+---
+
+**🎉 Your KDS system is now fully automated! Just enter food names and quantities - the system handles everything else!**

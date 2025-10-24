@@ -47,7 +47,9 @@ class OrderDataStorage:
             if 'status' not in item:
                 item['status'] = 'pending'
             # Calculate total amount
-            total_amount += item.get('price', 0) * item.get('quantity', 1)
+            price = item.get('price', 0) or 0
+            quantity = item.get('quantity', 1) or 1
+            total_amount += price * quantity
         
         order = {
             'id': order_id,

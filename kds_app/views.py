@@ -5,7 +5,9 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from .data_storage import OrderDataStorage
 from .counter_config import (
     get_counter_name, get_all_counters, validate_counter_credentials,
-    create_counter, update_counter, delete_counter, reset_to_defaults
+    create_counter, update_counter, delete_counter, reset_to_defaults,
+    assign_categories_to_counter, get_categories_for_counter, get_all_categories,
+    auto_assign_counter_for_item
 )
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
@@ -147,8 +149,21 @@ class OrderViewSet(viewsets.ViewSet):
     
     @action(detail=False, methods=['post'], url_path='create', permission_classes=[AllowAny])
     def create_order(self, request):
-        """Create a new order"""
-        order_data = request.data
+        """Create a new order with automatic counter assignment based on categories"""
+        order_data = request.data.copy()
+        
+        # Auto-assign counters based on item categories
+        if 'items' in order_data:
+            for item in order_data['items']:
+                if 'category' in item and 'assigned_counter' not in item:
+                    # Try to auto-assign counter based on category
+                    assigned_counter = auto_assign_counter_for_item(item['category'])
+                    if assigned_counter:
+                        item['assigned_counter'] = assigned_counter
+                    else:
+                        # If no counter found for category, set to None (manual assignment needed)
+                        item['assigned_counter'] = None
+        
         order_id = OrderDataStorage.create_order(order_data)
         
         # Get the created order
@@ -381,6 +396,70 @@ def reset_counters_endpoint(request):
                 'error': message
             }, status=status.HTTP_400_BAD_REQUEST)
             
+    except Exception as e:
+        return Response(
+            {'error': str(e)}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+# Category management endpoints
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def assign_categories_endpoint(request, counter_id):
+    """Assign categories to a counter"""
+    try:
+        categories = request.data.get('categories', [])
+        
+        if not isinstance(categories, list):
+            return Response({
+                'success': False,
+                'error': 'Categories must be a list'
+            }, status=status.HTTP_400_BAD_REQUEST)
+        
+        success, message = assign_categories_to_counter(counter_id, categories)
+        
+        if success:
+            return Response({
+                'success': True,
+                'message': message
+            })
+        else:
+            return Response({
+                'success': False,
+                'error': message
+            }, status=status.HTTP_400_BAD_REQUEST)
+            
+    except Exception as e:
+        return Response(
+            {'error': str(e)}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_categories_endpoint(request, counter_id):
+    """Get categories assigned to a counter"""
+    try:
+        categories = get_categories_for_counter(counter_id)
+        return Response({
+            'counter_id': counter_id,
+            'categories': categories
+        })
+    except Exception as e:
+        return Response(
+            {'error': str(e)}, 
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_all_categories_endpoint(request):
+    """Get all unique categories across all counters"""
+    try:
+        categories = get_all_categories()
+        return Response({
+            'categories': categories
+        })
     except Exception as e:
         return Response(
             {'error': str(e)}, 
